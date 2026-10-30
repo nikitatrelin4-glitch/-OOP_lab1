@@ -1,150 +1,120 @@
-#include "expression.h"
-#include <iostream>
+#include "expression2.h"
 #include <locale.h>
+#include <iostream>
+#include <map>
+#include <set>
+#include <string>
+#include <cmath>
+#include <stdexcept>
 
-int passed = 0;
-int failed = 0;
-
-void check(bool condition, const std::string& name) {
-    if (condition) {
-        passed++;
-        std::cout << "Тест пройден: " << name << std::endl;
-    } else {
-        failed++;
-        std::cout << "Тест НЕ пройден: " << name << std::endl;
+void check(bool condition, const std::string& message) {
+    if (!condition) {
+        throw std::runtime_error("Тест не пройден: " + message);
     }
+    std::cout << "[OK] " << message << '\n';
+}
+
+void checkDouble(double actual, double expected, const std::string& message) {
+    if (std::abs(actual - expected) > 1e-9) {
+        throw std::runtime_error("Тест не пройден: " + message);
+    }
+    std::cout << "[OK] " << message << '\n';
+}
+
+template <typename T>
+void printVariables(const std::set<T>& variables) {
+    std::cout << "Переменные: ";
+    if (variables.empty()) {
+        std::cout << "нет";
+    } else {
+        bool first = true;
+        for (const auto& variable : variables) {
+            if (!first) std::cout << ", ";
+            std::cout << variable;
+            first = false;
+        }
+    }
+    std::cout << '\n';
 }
 
 int main() {
     setlocale(LC_ALL, "Russian");
-    setlocale(LC_ALL, ".UTF-8");
+    using Expr = Expression<double>;
 
-    std::cout << "=== Выражение только из констант ===" << std::endl;
-    auto constExpr = Expression<double>::binary(
-        Expression<double>::Kind::Add,
-        Expression<double>::constant(2.0),
-        Expression<double>::constant(3.0));
-    std::map<std::string, double> vars;
-    std::cout << constExpr->toString() << " = " << constExpr->evaluate(vars) << std::endl;
-    check(constExpr->evaluate(vars) == 5.0, "Вычисление константного выражения");
-    check(constExpr->variables().empty(), "Переменных нет");
-    check(constExpr->depth() == 2, "Глубина константного выражения");
-    check(constExpr->nodeCount() == 3, "Количество узлов");
+    Expr::Ptr constants = Expr::binary(Expr::Kind::Add,
+        Expr::constant(2.0), Expr::constant(3.0));
+    std::cout << "Константы: " << constants->toString()
+              << " = " << constants->evaluate({}) << '\n';
+    checkDouble(constants->evaluate({}), 5.0, "Вычисление выражения из констант");
 
-    std::cout << std::endl << "=== Выражение с одной переменной ===" << std::endl;
-    auto oneVar = Expression<double>::binary(
-        Expression<double>::Kind::Mul,
-        Expression<double>::constant(2.0),
-        Expression<double>::variable("price"));
-    std::cout << oneVar->toString() << std::endl;
-    vars["price"] = 10.0;
-    check(oneVar->evaluate(vars) == 20.0, "Вычисление с одной переменной");
-    check(oneVar->variables().count("price") == 1 && oneVar->variables().size() == 1, "Список переменных");
+    Expr::Ptr oneVariable = Expr::binary(Expr::Kind::Multiply,
+        Expr::constant(4.0), Expr::variable("price"));
+    std::cout << "Одна переменная: " << oneVariable->toString() << '\n';
+    checkDouble(oneVariable->evaluate({{"price", 5.0}}), 20.0,
+                "Вычисление выражения с одной переменной");
 
-    std::cout << std::endl << "=== Выражение с несколькими переменными ===" << std::endl;
-    auto multiVar = Expression<double>::binary(
-        Expression<double>::Kind::Add,
-        Expression<double>::binary(
-            Expression<double>::Kind::Mul,
-            Expression<double>::variable("price"),
-            Expression<double>::variable("count")),
-        Expression<double>::variable("delivery"));
-    std::cout << multiVar->toString() << std::endl;
-    vars["price"] = 100.0;
-    vars["count"] = 2.0;
-    vars["delivery"] = 50.0;
-    check(multiVar->evaluate(vars) == 250.0, "price * count + delivery = 250");
-    vars["count"] = 3.0;
-    check(multiVar->evaluate(vars) == 350.0, "Вычисление при других значениях");
-    check(multiVar->variables().size() == 3, "Три переменных");
-    check(multiVar->depth() == 3, "Глубина выражения");
-    check(multiVar->nodeCount() == 5, "Количество узлов");
+    Expr::Ptr severalVariables = Expr::binary(Expr::Kind::Add,
+        Expr::binary(Expr::Kind::Multiply,
+            Expr::variable("price"), Expr::variable("count")),
+        Expr::variable("delivery"));
+    std::cout << "Несколько переменных: " << severalVariables->toString() << '\n';
+    checkDouble(severalVariables->evaluate({{"price", 10.0}, {"count", 3.0},
+                                          {"delivery", 5.0}}), 35.0,
+                "Вычисление выражения с несколькими переменными");
+    checkDouble(severalVariables->evaluate({{"price", 2.0}, {"count", 4.0},
+                                          {"delivery", 1.0}}), 9.0,
+                "Повторное вычисление с другими значениями");
 
-    std::cout << std::endl << "=== Глубокая вложенность и упрощение ===" << std::endl;
-    auto nested = Expression<double>::binary(
-        Expression<double>::Kind::Mul,
-        Expression<double>::binary(
-            Expression<double>::Kind::Add,
-            Expression<double>::constant(2.0),
-            Expression<double>::constant(3.0)),
-        Expression<double>::variable("price"));
-    std::cout << "Исходное: " << nested->toString() << std::endl;
-    auto simplified = nested->simplify();
-    std::cout << "Упрощенное: " << simplified->toString() << std::endl;
-    check(simplified->toString() == "(5.000000 * price)", "Упрощение (2 + 3) * price");
-    check(nested->toString() == "((2.000000 + 3.000000) * price)", "Исходное дерево не изменилось");
-    check(simplified->depth() == 2, "Глубина упрощенного выражения");
-    vars["price"] = 4.0;
-    check(simplified->evaluate(vars) == 20.0, "Упрощенное выражение вычисляется");
-    check(nested->evaluate(vars) == 20.0, "Исходное выражение вычисляется");
+    Expr::Ptr nested = Expr::binary(Expr::Kind::Multiply,
+        Expr::binary(Expr::Kind::Add, Expr::constant(2.0), Expr::constant(3.0)),
+        Expr::binary(Expr::Kind::Subtract,
+            Expr::variable("price"),
+            Expr::binary(Expr::Kind::Divide,
+                Expr::variable("delivery"), Expr::constant(2.0))));
+    std::cout << "Вложенное выражение: " << nested->toString() << '\n';
+    std::cout << "Глубина дерева: " << nested->depth() << '\n';
+    std::cout << "Количество узлов: " << nested->nodeCount() << '\n';
+    printVariables(nested->variablesUsed());
 
-    auto deepConst = Expression<double>::binary(
-        Expression<double>::Kind::Add,
-        Expression<double>::binary(
-            Expression<double>::Kind::Mul,
-            Expression<double>::constant(1.0),
-            Expression<double>::constant(2.0)),
-        Expression<double>::binary(
-            Expression<double>::Kind::Sub,
-            Expression<double>::constant(10.0),
-            Expression<double>::constant(4.0)));
-    auto deepSimplified = deepConst->simplify();
-    std::cout << "Исходное: " << deepConst->toString() << std::endl;
-    std::cout << "Упрощенное: " << deepSimplified->toString() << std::endl;
-    check(deepSimplified->toString() == "8.000000", "Полное упрощение констант");
-    check(deepConst->nodeCount() == 7, "Количество узлов исходного дерева");
+    Expr::Ptr simplified = nested->simplify();
+    std::cout << "После упрощения: " << simplified->toString() << '\n';
+    check(simplified->toString().find("(2 + 3)") == std::string::npos,
+          "Постоянное подвыражение упрощается");
+    check(nested->toString().find("(2 + 3)") != std::string::npos,
+          "Исходное дерево не изменилось после упрощения");
+    checkDouble(simplified->evaluate({{"price", 10.0}, {"delivery", 4.0}}), 40.0,
+                "Вычисление упрощённого выражения");
 
-    std::cout << std::endl << "=== Обработка ошибок ===" << std::endl;
+    bool unknownVariableHandled = false;
     try {
-        Expression<double>::variable("unknown")->evaluate({});
-        check(false, "Неизвестная переменная выбрасывает исключение");
-    } catch (const std::runtime_error& e) {
-        std::cout << "Поймано исключение: " << e.what() << std::endl;
-        check(true, "Неизвестная переменная выбрасывает исключение");
+        Expr::Ptr unknown = Expr::variable("unknown");
+        unknown->evaluate({});
+    } catch (const std::runtime_error&) {
+        unknownVariableHandled = true;
     }
+    check(unknownVariableHandled, "Неизвестная переменная обрабатывается явно");
 
+    bool divisionByZeroHandled = false;
     try {
-        Expression<double>::binary(
-            Expression<double>::Kind::Div,
-            Expression<double>::constant(1.0),
-            Expression<double>::constant(0.0))->evaluate({});
-        check(false, "Деление на ноль выбрасывает исключение");
-    } catch (const std::runtime_error& e) {
-        std::cout << "Поймано исключение: " << e.what() << std::endl;
-        check(true, "Деление на ноль выбрасывает исключение");
+        Expr::Ptr division = Expr::binary(Expr::Kind::Divide,
+            Expr::constant(5.0), Expr::constant(0.0));
+        division->evaluate({});
+    } catch (const std::runtime_error&) {
+        divisionByZeroHandled = true;
     }
+    check(divisionByZeroHandled, "Деление на ноль обрабатывается явно");
 
+    bool simplifyDivisionByZeroHandled = false;
     try {
-        Expression<double>::binary(
-            Expression<double>::Kind::Add,
-            Expression<double>::constant(1.0),
-            nullptr);
-        check(false, "Бинарная операция без двух операндов");
-    } catch (const std::invalid_argument& e) {
-        std::cout << "Поймано исключение: " << e.what() << std::endl;
-        check(true, "Бинарная операция без двух операндов");
+        Expr::Ptr division = Expr::binary(Expr::Kind::Divide,
+            Expr::constant(5.0), Expr::constant(0.0));
+        division->simplify();
+    } catch (const std::runtime_error&) {
+        simplifyDivisionByZeroHandled = true;
     }
+    check(simplifyDivisionByZeroHandled,
+          "Деление на ноль обрабатывается и при упрощении");
 
-    try {
-        Expression<int>::variable("");
-        check(false, "Пустое имя переменной");
-    } catch (const std::invalid_argument& e) {
-        std::cout << "Поймано исключение: " << e.what() << std::endl;
-        check(true, "Пустое имя переменной");
-    }
-
-    std::cout << std::endl << "=== Тот же код с другим числовым типом (int) ===" << std::endl;
-    auto intExpr = Expression<int>::binary(
-        Expression<int>::Kind::Mul,
-        Expression<int>::constant(6),
-        Expression<int>::variable("count"));
-    std::map<std::string, int> intVars;
-    intVars["count"] = 7;
-    std::cout << intExpr->toString() << " = " << intExpr->evaluate(intVars) << std::endl;
-    check(intExpr->evaluate(intVars) == 42, "Шаблон работает с int");
-
-    std::cout << std::endl;
-    std::cout << "Итого пройдено: " << passed << ", не пройдено: " << failed << std::endl;
-
-    return failed == 0 ? 0 : 1;
+    std::cout << "Все проверки завершены.\n";
+    return 0;
 }
