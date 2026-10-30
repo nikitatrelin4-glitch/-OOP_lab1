@@ -4,11 +4,14 @@
 #include <vector>
 #include <memory>
 #include <iostream>
+#include <algorithm>
 
 class Form {
     std::vector<std::unique_ptr<UIElement>> elements_;
     int focused_;
 
+    // Единый механизм поиска верхнего элемента под точкой.
+    // Порядок в векторе = порядок наложения: ищем с конца.
     UIElement* topElementAt(const Point2D& p, bool onlyEnabled) const {
         for (auto it = elements_.rbegin(); it != elements_.rend(); ++it) {
             if ((*it)->contains(p) && (!onlyEnabled || (*it)->isEnabled())) {
@@ -25,6 +28,20 @@ class Form {
             }
         }
         return -1;
+    }
+
+    void setFocus(UIElement* element) {
+        UIElement* current = focusedElement();
+        if (current == element) {
+            return;
+        }
+        if (current != nullptr) {
+            current->onFocusLost();
+        }
+        focused_ = indexOf(element);
+        if (element != nullptr) {
+            element->onFocusGained();
+        }
     }
 
 public:
@@ -51,11 +68,13 @@ public:
         }
         elements_[index]->setEnabled(enabled);
         if (!enabled && static_cast<int>(index) == focused_) {
+            elements_[index]->onFocusLost();
             focused_ = -1;
         }
         return true;
     }
 
+    // Верхний элемент под точкой (включая отключённые — для идентификации).
     UIElement* elementAt(const Point2D& p) const {
         return topElementAt(p, false);
     }
@@ -67,30 +86,35 @@ public:
         }
         element->onClick();
         if (element->canTakeFocus()) {
-            focused_ = indexOf(element);
+            setFocus(element);
         }
     }
 
     void sendText(const std::string& text) {
-        if (focused_ >= 0) {
-            elements_[focused_]->onTextInput(text);
+        UIElement* element = focusedElement();
+        if (element != nullptr && element->isEnabled()) {
+            element->onTextInput(text);
         }
     }
 
+    // Переход фокуса определяется только полиморфным canTakeFocus()
+    // и isEnabled() — без условных проверок конкретного типа.
     void focusNext() {
         if (elements_.empty()) {
             return;
         }
         for (size_t step = 1; step <= elements_.size(); step++) {
-            int index = (focused_ + static_cast<int>(step)) % static_cast<int>(elements_.size());
+            int index = (focused_ + static_cast<int>(step))
+                % static_cast<int>(elements_.size());
             if (index < 0) {
                 index += static_cast<int>(elements_.size());
             }
             if (elements_[index]->isEnabled() && elements_[index]->canTakeFocus()) {
-                focused_ = index;
+                setFocus(elements_[index].get());
                 return;
             }
         }
+        setFocus(nullptr);
     }
 
     UIElement* focusedElement() const {
@@ -102,12 +126,35 @@ public:
 
     size_t size() const { return elements_.size(); }
 
+    // Отображение рисунка формы в консоли:
+    // рамки элементов по их областям, '#' — элемент в фокусе.
     void render() const {
-        std::cout << "=== Состояние формы ===" << std::endl;
+        std::vector<std::string> grid(12, std::string(60, ' '));
+
+        auto drawRect = [&](const Rect& r, char border) {
+            int x0 = std::max(0, static_cast<int>(r.topLeft.x));
+            int y0 = std::max(0, static_cast<int>(r.topLeft.y));
+            int x1 = std::min(59, static_cast<int>(r.bottomRight().x));
+            int y1 = std::min(11, static_cast<int>(r.bottomRight().y));
+            for (int y = y0; y <= y1; y++) {
+                for (int x = x0; x <= x1; x++) {
+                    bool edge = (y == y0 || y == y1 || x == x0 || x == x1);
+                    grid[y][x] = edge ? border : ' ';
+                }
+            }
+        };
+
+        for (size_t i = 0; i < elements_.size(); i++) {
+            char border = (static_cast<int>(i) == focused_) ? '#' : '+';
+            drawRect(elements_[i]->bounds(), border);
+        }
+
+        for (const auto& line : grid) {
+            std::cout << line << std::endl;
+        }
         for (size_t i = 0; i < elements_.size(); i++) {
             std::string mark = (static_cast<int>(i) == focused_) ? " (в фокусе)" : "";
             std::cout << i << ": " << elements_[i]->toString() << mark << std::endl;
         }
-        std::cout << "=======================" << std::endl;
     }
 };
