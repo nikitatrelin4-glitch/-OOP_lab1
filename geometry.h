@@ -1,56 +1,50 @@
 #pragma once
 
-class Vector2D {
-    double x_;
-    double y_;
+struct Vector2D {
+    const double x;
+    const double y;
 
-public:
-    Vector2D(double x, double y) : x_(x), y_(y) {}
+    Vector2D(double x, double y) : x(x), y(y) {}
 
-    double x() const { return x_; }
-    double y() const { return y_; }
+    Vector2D operator+(const Vector2D& v) const { return Vector2D(x + v.x, y + v.y); }
+    Vector2D operator-(const Vector2D& v) const { return Vector2D(x - v.x, y - v.y); }
+    Vector2D operator*(double k) const { return Vector2D(x * k, y * k); }
+    Vector2D operator/(double k) const { return Vector2D(x / k, y / k); }
 
-    Vector2D operator+(const Vector2D& v) const { return Vector2D(x_ + v.x_, y_ + v.y_); }
-    Vector2D operator-(const Vector2D& v) const { return Vector2D(x_ - v.x_, y_ - v.y_); }
-    Vector2D operator*(double k) const { return Vector2D(x_ * k, y_ * k); }
-    Vector2D operator/(double k) const { return Vector2D(x_ / k, y_ / k); }
-
-    bool operator==(const Vector2D& v) const { return x_ == v.x_ && y_ == v.y_; }
+    bool operator==(const Vector2D& v) const { return x == v.x && y == v.y; }
     bool operator!=(const Vector2D& v) const { return !(*this == v); }
 };
 
-class Point2D {
-    double x_;
-    double y_;
+struct Point2D {
+    const double x;
+    const double y;
 
-public:
-    Point2D(double x, double y) : x_(x), y_(y) {}
+    Point2D(double x, double y) : x(x), y(y) {}
 
-    double x() const { return x_; }
-    double y() const { return y_; }
+    Point2D operator+(const Vector2D& v) const { return Point2D(x + v.x, y + v.y); }
+    Vector2D operator-(const Point2D& p) const { return Vector2D(x - p.x, y - p.y); }
 
-    Point2D operator+(const Vector2D& v) const { return Point2D(x_ + v.x(), y_ + v.y()); }
-    Vector2D operator-(const Point2D& p) const { return Vector2D(x_ - p.x(), y_ - p.y()); }
-
-    bool operator==(const Point2D& p) const { return x_ == p.x_ && y_ == p.y_; }
+    bool operator==(const Point2D& p) const { return x == p.x && y == p.y; }
     bool operator!=(const Point2D& p) const { return !(*this == p); }
 };
 
-class Rect {
-    Point2D topLeft_;
-    double width_;
-    double height_;
+struct Rect {
+    const Point2D topLeft;
+    const double width;
+    const double height;
 
-public:
     Rect(Point2D topLeft, double width, double height)
-        : topLeft_(topLeft), width_(width), height_(height) {}
+        : topLeft(topLeft), width(width), height(height) {}
 
-    Point2D topLeft() const { return topLeft_; }
-    double width() const { return width_; }
-    double height() const { return height_; }
+    Point2D bottomRight() const { return Point2D(topLeft.x + width, topLeft.y + height); }
 
     bool contains(const Point2D& p) const {
-        return p.x() >= topLeft_.x() && p.x() <= topLeft_.x() + width_
-            && p.y() >= topLeft_.y() && p.y() <= topLeft_.y() + height_;
+        return p.x >= topLeft.x && p.x <= topLeft.x + width
+            && p.y >= topLeft.y && p.y <= topLeft.y + height;
     }
+
+    bool operator==(const Rect& r) const {
+        return topLeft == r.topLeft && width == r.width && height == r.height;
+    }
+    bool operator!=(const Rect& r) const { return !(*this == r); }
 };
