@@ -2,6 +2,7 @@
 
 #include "geometry.h"
 #include <string>
+#include <utility>
 
 class UIElement {
 protected:
@@ -9,36 +10,35 @@ protected:
     Vector2D size_;
     bool enabled_;
 
-public:
     UIElement(Point2D position, Vector2D size)
         : position_(position), size_(size), enabled_(true) {}
 
+public:
     virtual ~UIElement() = default;
 
-    Rect bounds() const { return Rect(position_, size_.x(), size_.y()); }
-
+    Rect bounds() const { return Rect(position_, size_.x, size_.y); }
     bool contains(const Point2D& p) const { return bounds().contains(p); }
 
     bool isEnabled() const { return enabled_; }
-
     void setEnabled(bool enabled) { enabled_ = enabled; }
 
     virtual void onClick() = 0;
-
     virtual bool canTakeFocus() const { return false; }
+    virtual void onFocusGained() {}
+    virtual void onFocusLost() {}
 
     virtual void onTextInput(const std::string& text) {}
 
     virtual std::string toString() const = 0;
 };
 
-class Button : public UIElement {
+class Button final : public UIElement {
     std::string caption_;
     int clickCount_;
 
 public:
     Button(Point2D position, Vector2D size, std::string caption)
-        : UIElement(position, size), caption_(caption), clickCount_(0) {}
+        : UIElement(position, size), caption_(std::move(caption)), clickCount_(0) {}
 
     void onClick() override {
         if (enabled_) {
@@ -49,13 +49,11 @@ public:
     int clickCount() const { return clickCount_; }
 
     std::string toString() const override {
-        std::string state = enabled_ ? "включена" : "отключена";
-        return "Кнопка \"" + caption_ + "\", нажатий: " + std::to_string(clickCount_)
-            + ", состояние: " + state;
+        return "Button:" + std::to_string(clickCount_);
     }
 };
 
-class CheckBox : public UIElement {
+class CheckBox final : public UIElement {
     bool checked_;
 
 public:
@@ -71,13 +69,11 @@ public:
     bool isChecked() const { return checked_; }
 
     std::string toString() const override {
-        std::string mark = checked_ ? "[x]" : "[ ]";
-        std::string state = enabled_ ? "включен" : "отключен";
-        return "Флажок " + mark + ", состояние: " + state;
+        return checked_ ? "[x] CheckBox" : "[ ] CheckBox";
     }
 };
 
-class TextField : public UIElement {
+class TextField final : public UIElement {
     std::string text_;
 
 public:
@@ -96,8 +92,5 @@ public:
 
     const std::string& text() const { return text_; }
 
-    std::string toString() const override {
-        std::string state = enabled_ ? "включено" : "отключено";
-        return "Текстовое поле, текст: \"" + text_ + "\", состояние: " + state;
-    }
+    std::string toString() const override { return "TextField"; }
 };
