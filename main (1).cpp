@@ -2,6 +2,9 @@
 #include "elements.h"
 #include "form.h"
 #include <iostream>
+#include <locale.h>
+#include <windows.h>
+
 
 int passed = 0;
 int failed = 0;
@@ -17,7 +20,7 @@ void check(bool condition, const std::string& name) {
 }
 
 void testGeometry() {
-    Point2D a(1.0, 2.0);
+    Point2D a(2.0, 5.0);
     Vector2D v(3.0, 4.0);
     Point2D b = a + v;
     check(b == Point2D(4.0, 6.0), "Point2D + Vector2D");
@@ -109,7 +112,7 @@ void testForm() {
 }
 
 int main() {
-    setlocale(LC_ALL, ".UTF-8");
+    SetConsoleOutputCP(1251);
     setlocale(LC_ALL, "Russian");
 
     testGeometry();
